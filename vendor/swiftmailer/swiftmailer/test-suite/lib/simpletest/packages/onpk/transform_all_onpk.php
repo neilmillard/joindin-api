@@ -21,7 +21,7 @@ while (($file = readdir($dir)) !== false) {
 		$handle = fopen($destination, "w+");
 		fwrite($handle, $result);
 		fclose($handle);
-		echo "succès pour ".$destination."<br />";
+		echo "succï¿½s pour ".$destination."<br />";
 	} else {
 	   echo "erreur pour ".$destination." : ".xslt_error($xh)."<br />";
 	}

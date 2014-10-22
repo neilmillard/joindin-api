@@ -1,1 +1,6 @@
-Someone commented on your talk [title]*Rating:* [rating]*Comment:* [comment]
+Someone commented on your talk [title]
+
+*Rating:* [rating]
+
+*Comment:* [comment]
+

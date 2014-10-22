@@ -323,7 +323,7 @@ class TestOfSimpleHtmlLexer extends UnitTestCase {
         $parser->expectNever('acceptTextToken');
         $parser->expectAtLeastOnce('ignore');
         $lexer = new SimpleHtmlLexer($parser);
-        $this->assertTrue($lexer->parse("<SCRIPT>Javascript code {';:^%^%£$'@\"*(}</SCRIPT>"));
+        $this->assertTrue($lexer->parse("<SCRIPT>Javascript code {';:^%^%ï¿½$'@\"*(}</SCRIPT>"));
     }
     
     function testSkipHtmlComments() {
