@@ -442,6 +442,53 @@ class EventMapper extends ApiMapper
     }
 
     /**
+     * Events that a particular user has admin privileges on
+     *
+     * @param int $resultsperpage how many records to return
+     * @param int $start offset to start returning records from
+     * @param boolean $verbose used to determine how many fields are needed
+     *
+     * @return array the data, or false if something went wrong
+     */
+    public function getEventsHostedByUser($user_id, $resultsperpage, $start, $verbose = false)
+    {
+        $data = array("user_id" => (int)$user_id);
+
+        $sql = 'select events.*, '
+            . '(select count(*) from user_attend where user_attend.eid = events.ID)
+                as attendee_count, '
+            . 'abs(datediff(from_unixtime(events.event_start),
+                from_unixtime('.mktime(0, 0, 0).'))) as score, '
+            . 'CASE
+                WHEN (((events.event_start - 3600*24) < '.mktime(0,0,0).') and (events.event_start + (3*30*3600*24)) > '.mktime(0,0,0).') THEN 1
+                ELSE 0
+               END as comments_enabled '
+            . 'from events '
+            . 'join user_admin ua on (ua.rid = events.ID) AND rtype="event" AND (rcode!="pending" OR rcode is null)';
+
+        $sql .= 'where active = 1 and '
+            . '(pending = 0 or pending is NULL) and '
+            . ' ua.uid = :user_id';
+
+        $sql .= ' order by events.event_start desc ';
+
+        // limit clause
+        $sql .= $this->buildLimit($resultsperpage, $start);
+
+        $stmt = $this->_db->prepare($sql);
+        $response = $stmt->execute($data);
+        if ($response) {
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if(is_array($results)) {
+                $results['total'] = $this->getTotalCount($sql, $data);
+                $retval = $this->transformResults($results, $verbose);
+                return $retval;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Events that a particular user is marked as attending
      * 
      * @param int $resultsperpage how many records to return
@@ -635,6 +682,65 @@ class EventMapper extends ApiMapper
         }
 
         return false;
+    }
+
+    /**
+     * Edit an event.
+     *
+     * Accepts a subset of event fields
+     *
+     * @param string[] $event    Event data to insert into the database.
+     * @param int      $event_id The ID of the event to be edited
+     *
+     * @return integer|false
+     */
+    public function editEvent($event, $event_id)
+    {
+        // Sanity check: ensure all mandatory fields are present.
+        $mandatory_fields = array(
+            'name',
+            'description',
+            'start_date',
+            'end_date',
+            'tz_continent',
+            'tz_place',
+        );
+        $contains_mandatory_fields = !array_diff($mandatory_fields, array_keys($event));
+        if (!$contains_mandatory_fields) {
+            throw new Exception("Missing mandatory fields");
+        }
+
+        $sql = "UPDATE events SET %s WHERE ID = :event_id";
+
+        // get the list of column to API field name for all valid fields
+        $fields = $this->getVerboseFields();
+        $items  = array();
+
+        foreach ($fields as $api_name => $column_name) {
+            // We don't change any activation stuff here!!
+            if (in_array($column_name, ['pending', 'active'])) {
+                continue;
+            }
+            if (isset($event[$api_name])) {
+                $pairs[] = "$column_name = :$api_name";
+                $items[$api_name] = $event[$api_name];
+            }
+        }
+
+        $items['event_id'] = $event_id;
+
+        $stmt = $this->_db->prepare(sprintf($sql, implode(', ', $pairs)));
+
+        if (! $stmt->execute($items)) {
+            throw new Exception(sprintf(
+                'executing "%s" resulted in an error: %s',
+                $stmt->queryString,
+                implode(' :: ', $stmt->errorInfo())
+            ));
+            return false;
+        }
+
+        return $event_id;
     }
 
     /**
